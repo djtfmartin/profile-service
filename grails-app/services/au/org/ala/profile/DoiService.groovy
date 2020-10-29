@@ -1,56 +1,21 @@
 package au.org.ala.profile
 
 import au.org.ala.web.AuthService
-import groovy.xml.MarkupBuilder
-import groovyx.net.http.ContentType
-import groovyx.net.http.RESTClient
+import au.org.ala.ws.service.WebService
 import org.springframework.http.HttpStatus
 
 import java.text.SimpleDateFormat
 
 class DoiService {
 
-    static final String DATA_CITE_XSD_VERSION = "3"
-    static final String DATA_CITE_XSD = "http://schema.datacite.org/meta/kernel-${DATA_CITE_XSD_VERSION}/metadata.xsd"
-
-    static final String ANDS_RESPONSE_STATUS_OK = "MT090"
-    static final String ANDS_RESPONSE_STATUS_DEAD = "MT091"
-    static final String ANDS_RESPONSE_MINT_SUCCESS = "MT001"
+    static final String PROVIDER_DATACITE = "DATACITE"
 
     AuthService authService
+    WebService webService
     def grailsApplication
 
-    Map serviceStatus() {
-        String andsUrl = "${grailsApplication.config.ands.doi.service.url}status.json"
-
-        Map status = [:]
-        try {
-            def response = new RESTClient(andsUrl).get(requestContentType: ContentType.JSON, contentType: ContentType.JSON)
-            if ((response.status as int) == HttpStatus.OK.value()) {
-                status.statusCode = response?.data?.response.responsecode
-                status.message = "${response?.data?.response.message} - ${response?.data?.response.verbosemessage}"
-            } else {
-                status.statusCode = response.status
-                def httpStatus
-                try {
-                    httpStatus = HttpStatus.valueOf(response.status)
-                } catch (IllegalArgumentException e) {
-                    httpStatus = HttpStatus.BAD_REQUEST
-                }
-                status.message = httpStatus.reasonPhrase
-            }
-        } catch (Exception e) {
-            status.statusCode = "E001"
-            status.message = e.getMessage()
-            log.error "DOI Service health check failed", e
-        }
-
-        status
-    }
-
     /**
-     * ANDS service documentation can be found here: http://ands.org.au/services/cmd-technical-document.pdf
-     *
+     * Mint DOI user doi-service API. Doi-service uses DataCite to generate DOI.
      * @param opus
      * @param publication
      * @return
@@ -58,112 +23,76 @@ class DoiService {
     Map mintDOI(Opus opus, Publication publication) {
         Map result = [:]
 
-        Map andsServiceStatus = serviceStatus()
-        if (andsServiceStatus.statusCode == ANDS_RESPONSE_STATUS_OK) {
-            log.debug "Requesting new DOI from ANDS..."
-            // The ANDS URL must have a trailing slash or you get an empty response back
-            String andsUrl = "${grailsApplication.config.ands.doi.service.url}mint.json/"
-            String appId = "${grailsApplication.config.ands.doi.app.id}"
-            String requestXml = buildXml(opus, publication)
-            log.debug requestXml
+        log.debug "Requesting new DOI from doi-service..."
+        String doiURL = "${grailsApplication.config.doi.service.url}api/doi"
+        Map requestJSON = buildJSONForDataCite(opus, publication)
+        log.debug requestJSON
 
-            String secret = "${appId}:${grailsApplication.config.ands.doi.key}".encodeAsBase64()
+        Map headers = ["Content-Type": org.apache.http.entity.ContentType.APPLICATION_JSON, "Accept-Version": "1.0"]
+        Map response = webService.post(doiURL, requestJSON, [:], org.apache.http.entity.ContentType.APPLICATION_JSON, true, false, headers )
 
-            String url = "${grailsApplication.config.doi.resolution.url.prefix}${publication.uuid}"
-            Map query = [app_id: "${appId}", url: url]
-            Map headers = [Accept: ContentType.JSON, Authorization: "Basic ${secret}"]
+        if(response.resp) {
+            def json = response.resp
 
-            RESTClient client = new RESTClient(andsUrl)
-            def response = client.post(headers: headers,
-                    query: query,
-                    requestContentType: ContentType.URLENC,
-                    contentType: ContentType.JSON,
-                    body: [xml: requestXml])
-
-
-            if (response.status as int == HttpStatus.OK.value()) {
-                def json = response.data
+            // check if doi generated successfully. Or,
+            // check doi-service successfully created doi but failed on saving to database.
+            if ((json?.status == "ok") || ((json?.status == "error") && json?.doi)) {
                 log.debug "DOI response = ${json}"
 
-                if (json.response.responsecode == ANDS_RESPONSE_MINT_SUCCESS) {
-                    log.debug "Minted new doi ${json.response.doi}"
-                    result.status = "success"
-                    result.doi = json.response.doi
-                } else {
-                    result.status = "error"
-                    result.errorCode = json.response.responsecode
-                    result.error = "${json.response.message}: ${json.response.verbosemessage}"
-
-                    log.error("Failed to mint new doi: ${json.response.responsecode} - ${json.response.message}: ${json.response.verbosemessage}")
-                }
+                log.debug "Minted new doi ${json.doi}"
+                result.status = "success"
+                result.doi = json.doi
             } else {
                 result.status = "error"
-                result.errorCode = response.status
-                def status
-                try {
-                    status = HttpStatus.valueOf(response.status)
-                } catch (IllegalArgumentException e) {
-                    status = HttpStatus.BAD_REQUEST
-                }
-                result.error = status.reasonPhrase
+                result.errorCode = HttpStatus.INTERNAL_SERVER_ERROR
+                result.error = "${json.error}"
+
+                log.error("Failed to mint new doi: ${json.error}")
             }
         } else {
             result.status = "error"
-            result.errorCode = ANDS_RESPONSE_STATUS_DEAD
-            result.error = "The ANDS DOI minting service is not available."
-            log.error "The ANDS DOI minting service is not available: ${andsServiceStatus}"
+            result.errorCode = response.statusCode
+            def status
+            try {
+                status = HttpStatus.valueOf(response.statusCode)
+            } catch (IllegalArgumentException e) {
+                status = HttpStatus.BAD_REQUEST
+            }
+
+            result.error = status.reasonPhrase
         }
 
         return result
     }
 
     /**
-     * Schema documentation can be found here: https://schema.datacite.org/meta/kernel-3/doc/DataCite-MetadataKernel_v3.1.pdf
-     *
+     * Build a schema in a format accepted by doi-service for DATACITE.
      * @param opus
      * @param publication
      * @return
      */
-    private String buildXml(Opus opus, Publication publication) {
-        StringWriter writer = new StringWriter()
-
-        MarkupBuilder xml = new MarkupBuilder(writer)
-
-        xml.mkp.xmlDeclaration(version: "1.0", encoding: "utf-8")
-
-        xml.resource(xmlns: "http://datacite.org/schema/kernel-${DATA_CITE_XSD_VERSION}",
-                "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance",
-                "xsi:schemaLocation": "http://datacite.org/schema/kernel-${DATA_CITE_XSD_VERSION} ${DATA_CITE_XSD}") {
-            identifier(identifierType: "DOI", "10.5072/example")
-            creators() {
-                creator() {
-                    creatorName(publication.authors)
-                }
-            }
-            titles() {
-                title("${publication.title}")
-                title(titleType: "Subtitle", "Version ${publication.version}")
-            }
-            publisher(opus.title)
-            publicationYear(Calendar.getInstance().get(Calendar.YEAR))
-            subjects() {
-                subject(publication.title)
-            }
-            contributors() {
-                contributor(contributorType: "Editor") {
-                    contributorName(authService.getUserForUserId(authService.getUserId()).displayName)
-                }
-            }
-            dates() {
-                date(dateType: "Created", new SimpleDateFormat("yyyy-MM-dd").format(publication.publicationDate))
-            }
-            language("en")
-            resourceType(resourceTypeGeneral: "Text", "Species information")
-            descriptions() {
-                description(descriptionType: "Other", "Taxonomic treatment for ${publication.title}")
-            }
-        }
-
-        writer.toString()
+    private Map buildJSONForDataCite(Opus opus, Publication publication) {
+        [
+                "provider"            : PROVIDER_DATACITE,
+                "title"               : "${publication.title}",
+                "authors"             : publication.authors,
+                "description"         : "Taxonomic treatment for ${publication.title}",
+                "applicationUrl"      : "${grailsApplication.config.profile.hub.base.url}",
+                "customLandingPageUrl": "${grailsApplication.config.doi.resolution.url.prefix}${publication.uuid}",
+                "userId"              : "${authService.getUserId()}",
+                "providerMetadata"    : [
+                        "resourceType"   : "Text",
+                        "resourceText"   : "Species information",
+                        "creators"       : [["name": "${publication.authors}"]],
+                        "title"          : "${publication.title}",
+                        "subtitle"       : "Version ${publication.version}",
+                        "publisher"      : "${opus.title}",
+                        "publicationYear": Calendar.getInstance().get(Calendar.YEAR),
+                        "subjects"       : [publication.title],
+                        "contributors"   : [[type: "Editor", name: "${authService.getUserForUserId(authService.getUserId())?.displayName}"]],
+                        "createdDate"    : new SimpleDateFormat("yyyy-MM-dd").format(publication.publicationDate),
+                        "descriptions"   : [[type: "Other", text: "Taxonomic treatment for ${publication.title}"]]
+                ]
+        ]
     }
 }
