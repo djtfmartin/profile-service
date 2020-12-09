@@ -20,12 +20,12 @@ class DoiService {
      * @param publication
      * @return
      */
-    Map mintDOI(Opus opus, Publication publication) {
+    Map mintDOI(Opus opus, Publication publication, Profile profile = null) {
         Map result = [:]
 
         log.debug "Requesting new DOI from doi-service..."
         String doiURL = "${grailsApplication.config.doi.service.url}api/doi"
-        Map requestJSON = buildJSONForDataCite(opus, publication)
+        Map requestJSON = buildJSONForDataCite(opus, publication, profile)
         log.debug requestJSON
 
         Map headers = ["Content-Type": org.apache.http.entity.ContentType.APPLICATION_JSON, "Accept-Version": "1.0"]
@@ -71,14 +71,16 @@ class DoiService {
      * @param publication
      * @return
      */
-    private Map buildJSONForDataCite(Opus opus, Publication publication) {
+    Map buildJSONForDataCite(Opus opus, Publication publication, Profile profile = null) {
+        String applicationUrl = profile ? "${grailsApplication.config.profile.hub.base.url}/opus/${opus.uuid}/profile/${profile.uuid}" : grailsApplication.config.profile.hub.base.url
+
         [
                 "provider"            : PROVIDER_DATACITE,
                 "title"               : "${publication.title}",
                 "authors"             : publication.authors,
                 "description"         : "Taxonomic treatment for ${publication.title}",
-                "applicationUrl"      : "${grailsApplication.config.profile.hub.base.url}",
-                "customLandingPageUrl": "${grailsApplication.config.doi.resolution.url.prefix}${publication.uuid}",
+                "applicationUrl"      : applicationUrl,
+                "customLandingPageUrl": "${grailsApplication.config.doi.resolution.url.prefix}",
                 "userId"              : "${authService.getUserId()}",
                 "providerMetadata"    : [
                         "resourceType"   : "Text",

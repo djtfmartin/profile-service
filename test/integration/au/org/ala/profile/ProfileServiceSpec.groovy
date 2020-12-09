@@ -24,7 +24,7 @@ class ProfileServiceSpec extends BaseIntegrationSpec {
         bieService.getClassification(_) >> null
         service.bieService = bieService
         service.doiService = Mock(DoiService)
-        service.doiService.mintDOI(_, _) >> [status: "success", doi: "1234"]
+        service.doiService.mintDOI(_, _, _) >> [status: "success", doi: "1234"]
         service.grailsApplication = [config: [snapshot: [directory: "bla"]]]
         service.vocabService = Mock(VocabService)
         service.vocabService.getOrCreateTerm(_, _) >> { name, id -> [name: name, vocabId: id] }
@@ -853,7 +853,7 @@ class ProfileServiceSpec extends BaseIntegrationSpec {
         save profile
         MultipartFile mockFile = Mock(MultipartFile)
         service.doiService = Mock(DoiService)
-        service.doiService.mintDOI(_, _) >> [status: "success", doi: "12345/0987"]
+        service.doiService.mintDOI(_, _, _) >> [status: "success", doi: "12345/0987"]
 
         when:
         Publication pub = service.savePublication(profile.uuid, mockFile)
@@ -871,7 +871,7 @@ class ProfileServiceSpec extends BaseIntegrationSpec {
         save profile
         MultipartFile mockFile = Mock(MultipartFile)
         service.doiService = Mock(DoiService)
-        service.doiService.mintDOI(_, _) >> [status: "error", statusCode: "E001", message: "Something blew up!!"]
+        service.doiService.mintDOI(_, _, _) >> [status: "error", statusCode: "E001", message: "Something blew up!!"]
 
         when:
         def result = service.savePublication(profile.uuid, mockFile)

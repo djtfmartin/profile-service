@@ -135,4 +135,26 @@ class DoiServiceSpec extends BaseIntegrationSpec {
         result.status == "success"
         result.doi == "12345"
     }
+
+    def "buildJSONForDataCite should return correct payload for "() {
+        setup:
+        service.webService = Mock(WebService)
+        service.webService.post(_, _, _, _, _, _, _) >> [statusCode: org.springframework.http.HttpStatus.OK.value(), resp: [ status: "error", doi: "12345"] ]
+        service.authService = Mock(AuthService)
+        service.authService.getUserId() >> "user1"
+        service.authService.getUserForUserId(_) >> new UserDetails(userId: 'user1', userName: "username1")
+
+        when:
+        Map result = service.buildJSONForDataCite(new Opus(title: "Opus", uuid: 'opus1'), new Publication(authors: "fred", title: "species1", publicationDate: new Date(), version: 1), new Profile(uuid: 'profile1'))
+
+        then:
+        result.applicationUrl == "https://prod.blah/opus/opus1/profile/profile1"
+
+        when:
+        result = service.buildJSONForDataCite(new Opus(title: "Opus", uuid: 'opus1'), new Publication(authors: "fred", title: "species1", publicationDate: new Date(), version: 1), null)
+
+        then:
+        result.applicationUrl == "https://prod.blah"
+    }
+
 }
