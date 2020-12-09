@@ -74,7 +74,7 @@ class DoiService {
      * @return
      */
     Map buildJSONForDataCite(Opus opus, Publication publication, Profile profile = null) {
-        String applicationUrl = profile ? "${grailsApplication.config.profile.hub.base.url}/opus/${opus.uuid}/profile/${profile.uuid}" : grailsApplication.config.profile.hub.base.url
+        String applicationUrl = profile ? "${grailsApplication.config.profile.hub.base.url}opus/${opus.uuid}/profile/${profile.uuid}" : grailsApplication.config.profile.hub.base.url
 
         [
                 "provider"            : PROVIDER_DATACITE,

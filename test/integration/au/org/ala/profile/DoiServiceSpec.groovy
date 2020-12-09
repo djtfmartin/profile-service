@@ -21,7 +21,7 @@ class DoiServiceSpec extends BaseIntegrationSpec {
                                                               url: [prefix: "http://blabla/publication"]
                                                       ]
                                               ],
-                                               profile : [hub: [base: [url: "https://prod.blah"]]]
+                                               profile : [hub: [base: [url: "https://prod.blah/"]]]
                                              ]
         ]
     }
@@ -154,7 +154,7 @@ class DoiServiceSpec extends BaseIntegrationSpec {
         result = service.buildJSONForDataCite(new Opus(title: "Opus", uuid: 'opus1'), new Publication(authors: "fred", title: "species1", publicationDate: new Date(), version: 1), null)
 
         then:
-        result.applicationUrl == "https://prod.blah"
+        result.applicationUrl == "https://prod.blah/"
     }
 
 }
