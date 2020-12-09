@@ -18,6 +18,7 @@ class DoiService {
      * Mint DOI user doi-service API. Doi-service uses DataCite to generate DOI.
      * @param opus
      * @param publication
+     * @params profile
      * @return
      */
     Map mintDOI(Opus opus, Publication publication, Profile profile = null) {
@@ -69,6 +70,7 @@ class DoiService {
      * Build a schema in a format accepted by doi-service for DATACITE.
      * @param opus
      * @param publication
+     * @param profile
      * @return
      */
     Map buildJSONForDataCite(Opus opus, Publication publication, Profile profile = null) {
