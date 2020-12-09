@@ -76,13 +76,19 @@ class DoiService {
     Map buildJSONForDataCite(Opus opus, Publication publication, Profile profile = null) {
         String applicationUrl = profile ? "${grailsApplication.config.profile.hub.base.url}opus/${opus.uuid}/profile/${profile.uuid}" : grailsApplication.config.profile.hub.base.url
 
+        // Assign a UUID if it does not exist. UUID is normally created during the first save. But need it here to create
+        // custom landing page.
+        if (!publication.uuid) {
+            publication.uuid = UUID.randomUUID().toString()
+        }
+
         [
                 "provider"            : PROVIDER_DATACITE,
                 "title"               : "${publication.title}",
                 "authors"             : publication.authors,
                 "description"         : "Taxonomic treatment for ${publication.title}",
                 "applicationUrl"      : applicationUrl,
-                "customLandingPageUrl": "${grailsApplication.config.doi.resolution.url.prefix}",
+                "customLandingPageUrl": "${grailsApplication.config.doi.resolution.url.prefix}${publication.uuid}",
                 "userId"              : "${authService.getUserId()}",
                 "providerMetadata"    : [
                         "resourceType"   : "Text",

@@ -18,7 +18,7 @@ class DoiServiceSpec extends BaseIntegrationSpec {
                                              [ doi : [
                                                       service: [url: "http://ands.bla.bla/"],
                                                       resolution: [
-                                                              url: [prefix: "http://blabla/publication"]
+                                                              url: [prefix: "http://blabla/publication/"]
                                                       ]
                                               ],
                                                profile : [hub: [base: [url: "https://prod.blah/"]]]
@@ -145,16 +145,19 @@ class DoiServiceSpec extends BaseIntegrationSpec {
         service.authService.getUserForUserId(_) >> new UserDetails(userId: 'user1', userName: "username1")
 
         when:
-        Map result = service.buildJSONForDataCite(new Opus(title: "Opus", uuid: 'opus1'), new Publication(authors: "fred", title: "species1", publicationDate: new Date(), version: 1), new Profile(uuid: 'profile1'))
+        Map result = service.buildJSONForDataCite(new Opus(title: "Opus", uuid: 'opus1'), new Publication(authors: "fred", title: "species1", publicationDate: new Date(), uuid: 'uuid1', version: 1), new Profile(uuid: 'profile1'))
 
         then:
         result.applicationUrl == "https://prod.blah/opus/opus1/profile/profile1"
+        result.customLandingPageUrl == 'http://blabla/publication/uuid1'
 
         when:
         result = service.buildJSONForDataCite(new Opus(title: "Opus", uuid: 'opus1'), new Publication(authors: "fred", title: "species1", publicationDate: new Date(), version: 1), null)
 
         then:
         result.applicationUrl == "https://prod.blah/"
+        // should have uuid appended to URL
+        result.customLandingPageUrl.startsWith('http://blabla/publication/') && !result.customLandingPageUrl.endsWith('http://blabla/publication/')
     }
 
 }
