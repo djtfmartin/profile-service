@@ -287,7 +287,7 @@ class CloneAndDraftUtilTest extends Specification {
         clone.creators[0].is(jill)
         clone.creators[1].is(fred)
         !clone.editors.is(original.editors)
-        clone.editors[0].is(jill)
-        clone.editors[1].is(bob)
+        clone.editors[0].is(bob)
+        clone.editors[1].is(jill)
     }
 }

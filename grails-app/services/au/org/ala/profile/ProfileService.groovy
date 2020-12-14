@@ -964,7 +964,7 @@ class ProfileService extends BaseDataAccessService {
             publication.version = 1
         }
 
-        Map doiResult = doiService.mintDOI(profile.opus, publication)
+        Map doiResult = doiService.mintDOI(profile.opus, publication, profile)
         if (doiResult.status == "success") {
             publication.doi = doiResult.doi
 
